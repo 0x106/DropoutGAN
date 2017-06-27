@@ -295,3 +295,78 @@ class Classifier(nn.Module):
         layer = drop * layer
 
         return layer
+
+class MNISTClassifier(nn.Module):
+    def __init__(self, opt):
+        super(MNISTClassifier, self).__init__()
+
+        self.fc1 = nn.Linear(opt['dims'], opt['nh'])
+        self.fc2 = nn.Linear(opt['nh'], opt['n_units'])
+        self.fc3 = nn.Linear(opt['n_units'], 10)
+
+    def forward(self, x, probs):
+        x = x.view(x.size(0), 784)
+        x = nn.ReLU(True)(self.fc1(x))
+        x = nn.ReLU(True)( self.dropout( self.fc2(x), probs ) )
+        x = nn.Sigmoid()(self.fc3(x))
+
+        return x
+
+    def dropout(self, layer, probs):
+
+        drop = torch.bernoulli(probs)
+        layer = drop * layer
+
+        return layer
+
+
+class MNISTAutoEncoder(nn.Module):
+    def __init__(self, opt):
+        super(MNISTAutoEncoder, self).__init__()
+
+        self.encode = nn.Sequential(
+            nn.Linear(opt['dims'], opt['nh']),
+            nn.ReLU(True),
+            nn.Linear(opt['nh'], opt['nh']*2),
+            nn.BatchNorm1d(opt['nh']*2),
+            nn.ReLU(True),
+            nn.Linear(opt['nh']*2, opt['nh']*4),
+            nn.BatchNorm1d(opt['nh']*4),
+            nn.ReLU(True),
+            nn.Linear(opt['nh']*4, opt['n_units']),
+        )
+
+        self.decode = nn.Sequential(
+            nn.BatchNorm1d(opt['n_units']),
+            nn.ReLU(True),
+            nn.Linear(opt['n_units'], opt['nh']*4),
+            nn.BatchNorm1d(opt['nh']*4),
+            nn.ReLU(True),
+            nn.Linear(opt['nh']*4, opt['nh']*2),
+            nn.BatchNorm1d(opt['nh']*2),
+            nn.ReLU(True),
+            nn.Linear(opt['nh']*2, opt['nh']),
+            nn.BatchNorm1d(opt['nh']),
+            nn.ReLU(True),
+            nn.Linear(opt['nh'], opt['dims']),
+            # nn.Tanh()
+        )
+
+        self.num_weights = 0
+        for l in self.encode.parameters():
+            if l.dim() == 1:
+                self.num_weights += l.size(0)
+            else:
+                self.num_weights += l.size(0) * l.size(1)
+        for l in self.decode.parameters():
+            if l.dim() == 1:
+                self.num_weights += l.size(0)
+            else:
+                self.num_weights += l.size(0) * l.size(1)
+
+    def forward(self, x):
+        x = x.view(x.size(0), 784)
+        encoded = self.encode(x)
+        decoded = self.decode(encoded)
+        return decoded.view(x.size(0), 1, 28, 28), nn.Sigmoid()(encoded) # decoded should match input, encoded are the
+                                #   dropout probabilities.

@@ -21,7 +21,7 @@ class DataCircle():
 		self.Q = torch.FloatTensor(self.B, 2).fill_(0)
 
 		self.M = torch.FloatTensor(self.B*2, 2).fill_(0)
-		self.T = torch.FloatTensor(self.B).fill_(0)
+		self.T = torch.FloatTensor(self.B*2).fill_(0)
 		self.targets = torch.FloatTensor(self.B*2,2).fill_(0)
 
 	def next(self):
@@ -43,24 +43,24 @@ class DataCircle():
 		self.M[:,0].copy_(torch.from_numpy(normalise(self.M[:,0].numpy())))
 		self.M[:,1].copy_(torch.from_numpy(normalise(self.M[:,1].numpy())))
 
-		self.T.fill_(0.)
-		for i in range(self.B):
-			if self.P[i,1] > 0.:
-				self.T[i] = 1
+		# self.T.fill_(0.)
+		# for i in range(self.B):
+		# 	if self.P[i,1] > 0.:
+		# 		self.T[i] = 1
 
-		# self.T[:self.B].fill_(1.)
-		# self.T[self.B:].fill_(0.)
+		self.T[:self.B].fill_(1.)
+		self.T[self.B:].fill_(0.)
 
-		# indices = torch.LongTensor(self.B*2).copy_(torch.from_numpy(np.random.permutation(self.B*2)))
+		indices = torch.LongTensor(self.B*2).copy_(torch.from_numpy(np.random.permutation(self.B*2)))
 
-		# self.M = self.M[indices]
-		# self.T = self.T[indices]
+		self.M = self.M[indices]
+		self.T = self.T[indices]
 
 		# self.targets[:,0].copy_(self.T)
 		# self.targets[:,1].copy_(1. - self.T)
 
 		# return self.P.cuda(), self.Q.cuda(), self.M[:self.B].cuda(), self.targets[:self.B].cuda()
-		return self.P, self.Q, self.M[:self.B], self.T#self.targets[:self.B]
+		return self.P, self.Q, self.M[:self.B], self.T[:self.B]#self.targets[:self.B]
 
 
 class Data():
