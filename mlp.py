@@ -272,7 +272,6 @@ class AutoEncoder(nn.Module):
         return decoded, nn.Sigmoid()(encoded) # decoded should match input, encoded are the
                                 #   dropout probabilities.
 
-
 class Classifier(nn.Module):
     def __init__(self, opt):
         super(Classifier, self).__init__()
