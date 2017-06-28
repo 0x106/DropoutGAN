@@ -14,7 +14,7 @@ def normalise(data, _new_min=-1.,_new_max=1):
 class DataCircle():
 
 	def __init__(self, opt):
-		self.B = 1000#opt['B']
+		self.B = opt['B']
 
 		# the two data circles
 		self.P = torch.FloatTensor(self.B, 2).fill_(0)
@@ -27,8 +27,8 @@ class DataCircle():
 
 	def next(self):
 
-		z = 10
-		label = 0
+		z = 100
+		label = 0.
 		size = ((2. * math.pi) / z)
 		for i in range(z):
 
@@ -43,7 +43,7 @@ class DataCircle():
 
 			self.T[i*(self.B//z):(i+1)*(self.B//z)].fill_(label)
 
-			label = 0 if label else 1
+			label = 0. if label else 1.
 
 		self.P[:,0].copy_(torch.from_numpy(normalise(self.P[:,0].numpy())))
 		self.P[:,1].copy_(torch.from_numpy(normalise(self.P[:,1].numpy())))

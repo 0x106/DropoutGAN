@@ -13,8 +13,14 @@ import matplotlib.pyplot as plt
 
 def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
+	resp = ''
 	if os.path.isfile(opt['autoencoder_file']):
-		print("Autoencoder already exists with that file name.")
+		print('Do you want to overwrite the autoencoder?')
+		print('File:', opt['autoencoder_file'])
+		resp = input('[y/n] --> ')
+
+	if resp == 'n':
+		print('Exiting.')
 		return
 
 	logs = []
@@ -46,31 +52,121 @@ def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
 	torch.save(autoencoder.state_dict(),opt['autoencoder_file'])
 
-def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
-	if os.path.isfile(opt['classifier_file']):
-		print("Classifier already exists with that file name.")
-		return
+def train_classifier_testing(opt, data_loader, autoencoder, classifier, criterion, optimiser):
 
-	if not os.path.isfile(opt['autoencoder_file']):
-		print("No autoencoder exists.")
-		print("Looking for:", opt['autoencoder_file'])
-		return
+	# resp = ''
+	# if os.path.isfile(opt['classifier_file']):
+	# 	print('Do you want to overwrite the classifier?')
+	# 	print('File:', opt['classifier_file'])
+	# 	resp = input('[y/n] --> ')
+	#
+	# if resp == 'n':
+	# 	print('Exiting.')
+	# 	return
 
-	logs = []
+	logs0 = [[], []]
+	logs1 = [[], []]
 	for epoch in range(opt['epochs']):
-		classifier.zero_grad()
+		classifier[0].zero_grad()
+		classifier[1].zero_grad()
 
 		x, _, _, targets = data_loader.next()
-		
-		for i in range(x.size(0)):
-			if targets[i] == 0.:
-				plt.plot(x[i,0], x[i,1], '+', color='blue')
-			else:
-				plt.plot(x[i,0], x[i,1], '+', color='red')
-		plt.pause(100)
-		plt.clf()
 
-		sys.exit()
+		y, z = autoencoder( Variable(x) )
+
+		# z.data.fill_(0.5)
+		output0 = classifier[0](Variable(x), Variable(z.detach().data), is_training=True)
+
+		# z.data.normal_(0,0.1)
+		# z = nn.Sigmoid()(z)
+		# z.data.fill_(1.)
+		output1 = classifier[1](Variable(x), Variable(z.detach().data), is_training=True)
+
+		loss0 = criterion(output0, Variable(targets))
+		loss1 = criterion(output1, Variable(targets))
+
+		loss0.backward()
+		loss1.backward()
+
+		optimiser[0].step()
+		optimiser[1].step()
+
+		# output0 = classifier[0](Variable(x), Variable(z.detach().data))
+		output1 = classifier[1](Variable(x), Variable(z.detach().data))
+
+		predictions0 = torch.round(output0.data)
+		correct0 = predictions0.eq(targets)[:,0]
+
+		predictions1 = torch.round(output1.data)
+		correct1 = predictions1.eq(targets)[:,0]
+
+		logs0[0].append(loss0.data[0])
+		logs0[1].append(correct0.sum() / output0.size(0))
+
+		logs1[0].append(loss1.data[0])
+		logs1[1].append(correct1.sum() / output1.size(0))
+
+		if ((epoch+1)%10) == 0:
+			# plt.subplot(311)
+			# # plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
+			# for i in range(x.size(0)):
+			# 	if correct0[i]:
+			# 		plt.plot(x[i,0], x[i,1], '+', color='blue')
+			# 	# else:
+			# 		# plt.plot(x[i,0], x[i,1], '+', color='red')
+			#
+			# plt.subplot(312)
+			# # plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
+			# for i in range(x.size(0)):
+			# 	if correct1[i]:
+			# 		plt.plot(x[i,0], x[i,1], '+', color='blue')
+				# else:
+					# plt.plot(x[i,0], x[i,1], '+', color='red')
+
+			plt.subplot(211)
+			plt.plot(logs0[0], label = '0-l')
+			plt.plot(logs1[0], label = '0-a')
+
+			plt.subplot(212)
+			plt.plot(logs0[1], label = '1-l')
+			plt.plot(logs1[1], label = '1-a')
+			# plt.legend()
+			plt.pause(0.001)
+			plt.clf()
+
+		print(epoch, np.mean(logs0[0][-100:]), np.mean(logs0[1][-100:]), np.mean(logs1[0][-100:]), np.mean(logs1[1][-100:]))
+	# torch.save(classifier[0].state_dict(),opt['classifier_file'])
+
+def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
+
+	resp = ''
+	if os.path.isfile(opt['classifier_file']):
+		print('Do you want to overwrite the classifier?')
+		print('File:', opt['classifier_file'])
+		resp = input('[y/n] --> ')
+
+	if resp == 'n':
+		print('Exiting.')
+		return
+
+	logs = [[], []]
+	for epoch in range(opt['epochs']):
+		classifier[0].zero_grad()
+
+		x, _, _, targets = data_loader.next()
+		y, z = autoencoder( Variable(x) )
+
+		output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
+
+		loss = criterion(output, Variable(targets))
+
+		loss.backward()
+
+		optimiser.step()
+
+		print(epoch, np.mean(logs0[0][-100:]), np.mean(logs0[1][-100:]), np.mean(logs1[0][-100:]), np.mean(logs1[1][-100:]))
+	torch.save(classifier[0].state_dict(),opt['classifier_file'])
+
 
 def train_adversarial():
 	pass
@@ -79,7 +175,12 @@ if __name__ == '__main__':
 
 	print(" ---- Setup ---- ")
 
-	opt = { 'B': 100,
+	train_AE_CLF = False
+	if len(sys.argv) > 1:
+		if sys.argv[1] == 'train-AE-CLF':
+			train_AE_CLF = True
+
+	opt = { 'B': 1000,
 		'ng': 4,
 		'J': 10,
 		'M': 1,
@@ -90,7 +191,7 @@ if __name__ == '__main__':
 		'dims': 2,          # data dimensionality
 		'alpha': 0.9,       # friction term, eq. to momentum of 0.9
 		'eta': 0.001,       # learning rate
-		'epochs': 200,
+		'epochs': 1000,
 		'gpu': False,
 		'mnist': False,
 		'output': "/output/",
@@ -101,20 +202,26 @@ if __name__ == '__main__':
 	experiment = 'circle'
 
 	if experiment == 'circle':
-		opt['B'] = 100
+		# opt['B'] = 1000
 		data_loader = data.DataCircle(opt)
 
 		autoencoder = mlp.AutoEncoder(opt)
 		AE_criterion = nn.BCELoss()
 		AE_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
 
-		classifier = mlp.AutoEncoder(opt)
+		classifier = [mlp.Classifier(opt), mlp.Classifier(opt)]
 		CLF_criterion = nn.BCELoss()
-		CLF_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
+		CLF_optimiser = [optim.Adam(classifier[0].parameters(), lr=opt['eta']), optim.Adam(classifier[1].parameters(), lr=opt['eta'])]
 
-	train_autoencoder(opt, data_loader, autoencoder, AE_criterion, AE_optimiser)
-	train_classifier(opt, data_loader, autoencoder, classifier, CLF_criterion, CLF_optimiser)
+		autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
+		# classifier[0].load_state_dict(torch.load(opt['classifier_file']))
 
+	if train_AE_CLF:
+		# train_autoencoder(opt, data_loader, autoencoder, AE_criterion, AE_optimiser)
+		train_classifier(opt, data_loader, autoencoder, classifier, CLF_criterion, CLF_optimiser)
+
+	import exp
+	exp.value_surface(classifier[0], autoencoder, data_loader)
 
 
 
