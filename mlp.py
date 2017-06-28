@@ -304,22 +304,28 @@ class MNISTClassifier(nn.Module):
     def __init__(self, opt):
         super(MNISTClassifier, self).__init__()
 
-        self.fc1 = nn.Linear(opt['dims'], opt['nh'])
+        self.dims = opt['dims']
+
+        self.fc1 = nn.Linear(self.dims * self.dims, opt['nh'])
         self.fc2 = nn.Linear(opt['nh'], opt['n_units'])
         self.fc3 = nn.Linear(opt['n_units'], 10)
 
-    def forward(self, x, probs):
-        x = x.view(x.size(0), 784)
+    def forward(self, x, probs, is_training=False):
+        x = x.view(x.size(0), self.dims * self.dims)
         x = nn.ReLU(True)(self.fc1(x))
-        x = nn.ReLU(True)( self.dropout( self.fc2(x), probs ) )
+        x = nn.ReLU(True)( self.dropout( self.fc2(x), probs, is_training) )
         x = nn.Sigmoid()(self.fc3(x))
 
         return x
 
-    def dropout(self, layer, probs):
+    def dropout(self, layer, probs, is_training):
 
-        drop = torch.bernoulli(probs)
-        layer = drop * layer
+        if is_training:
+            # probs = torch.round(probs) * 0.9 + 0.05
+
+            drop = torch.bernoulli(torch.round(probs))
+            layer = drop * layer
+            # layer = layer * (1./(torch.sum(drop)/probs.size(0))).data[0]
 
         return layer
 
@@ -328,8 +334,10 @@ class MNISTAutoEncoder(nn.Module):
     def __init__(self, opt):
         super(MNISTAutoEncoder, self).__init__()
 
+        self.dims = opt['dims']
+
         self.encode = nn.Sequential(
-            nn.Linear(opt['dims'], opt['nh']),
+            nn.Linear(opt['dims']*opt['dims'], opt['nh']),
             nn.ReLU(True),
             nn.Linear(opt['nh'], opt['nh']*2),
             nn.BatchNorm1d(opt['nh']*2),
@@ -352,7 +360,7 @@ class MNISTAutoEncoder(nn.Module):
             nn.Linear(opt['nh']*2, opt['nh']),
             nn.BatchNorm1d(opt['nh']),
             nn.ReLU(True),
-            nn.Linear(opt['nh'], opt['dims']),
+            nn.Linear(opt['nh'], opt['dims']*opt['dims']),
             # nn.Tanh()
         )
 
@@ -369,8 +377,8 @@ class MNISTAutoEncoder(nn.Module):
                 self.num_weights += l.size(0) * l.size(1)
 
     def forward(self, x):
-        x = x.view(x.size(0), 784)
+        x = x.view(x.size(0), self.dims*self.dims)
         encoded = self.encode(x)
         decoded = self.decode(encoded)
-        return decoded.view(x.size(0), 1, 28, 28), nn.Sigmoid()(encoded) # decoded should match input, encoded are the
+        return decoded.view(x.size(0), 1, self.dims, self.dims), nn.Sigmoid()(encoded) # decoded should match input, encoded are the
                                 #   dropout probabilities.

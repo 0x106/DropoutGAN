@@ -38,21 +38,25 @@ def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
 		optimiser.step()
 
-		if ((epoch+1)%10) == 0:
-			plt.subplot(211)
-			plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
-			plt.plot(y.data[:,0].numpy(), y.data[:,1].numpy(), '+')
+		if opt['experiment'] == 'mnist':
+			if ((epoch+1)%100) == 0:
+				vutils.save_image(y.data, '{}/real_samples-{}.png'.format(opt['output'], epoch), normalize=True)
+		else:
+			if ((epoch+1)%10) == 0:
+				plt.subplot(211)
+				plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
+				plt.plot(y.data[:,0].numpy(), y.data[:,1].numpy(), '+')
 
-			plt.subplot(212)
-			plt.plot(logs)
-			plt.pause(0.001)
-			plt.clf()
+				plt.subplot(212)
+				plt.plot(logs)
+				plt.pause(0.001)
+				plt.clf()
 
-			print(epoch, np.mean(logs[-100:]))
+		print(epoch, np.mean(logs[-100:]))
 
 	torch.save(autoencoder.state_dict(),opt['autoencoder_file'])
 
-def train_classifier_testing(opt, data_loader, autoencoder, classifier, criterion, optimiser):
+def test_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
 
 	# resp = ''
 	# if os.path.isfile(opt['classifier_file']):
@@ -151,7 +155,7 @@ def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optim
 
 	logs = [[], []]
 	for epoch in range(opt['epochs']):
-		classifier[0].zero_grad()
+		classifier.zero_grad()
 
 		x, _, _, targets = data_loader.next()
 		y, z = autoencoder( Variable(x) )
@@ -160,13 +164,20 @@ def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optim
 
 		loss = criterion(output, Variable(targets))
 
+		# print(output[:10])
+		# print(targets[:10])
+		# sys.exit()
+
 		loss.backward()
 
 		optimiser.step()
 
-		print(epoch, np.mean(logs0[0][-100:]), np.mean(logs0[1][-100:]), np.mean(logs1[0][-100:]), np.mean(logs1[1][-100:]))
-	torch.save(classifier[0].state_dict(),opt['classifier_file'])
+		logs[0].append(loss.data[0])
 
+		print(epoch, np.mean(logs[0][-100:]), np.mean(logs[1][-100:]))
+
+
+	# torch.save(classifier[0].state_dict(),opt['classifier_file'])
 
 def train_adversarial():
 	pass
@@ -191,17 +202,18 @@ if __name__ == '__main__':
 		'dims': 2,          # data dimensionality
 		'alpha': 0.9,       # friction term, eq. to momentum of 0.9
 		'eta': 0.001,       # learning rate
-		'epochs': 1000,
+		'epochs': 5000,
 		'gpu': False,
 		'mnist': False,
-		'output': "/output/",
-		'autoencoder_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/autoencoder-v1-0.pth",
-		'classifier_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/classifier-v1-0.pth"
+		'gpu': False,
+		'data_path': '/Users/jordancampbell/helix/phd/DropoutGAN/data/mnist/',
+		'output': '/Users/jordancampbell/helix/phd/DropoutGAN/output/',
+		'autoencoder_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/autoencoder-mnist-v1-0.pth",
+		'classifier_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/classifier-mnist-v1-0.pth",
+		'experiment': 'mnist'
 	}
 
-	experiment = 'circle'
-
-	if experiment == 'circle':
+	if opt['experiment'] == 'circle':
 		# opt['B'] = 1000
 		data_loader = data.DataCircle(opt)
 
@@ -213,8 +225,23 @@ if __name__ == '__main__':
 		CLF_criterion = nn.BCELoss()
 		CLF_optimiser = [optim.Adam(classifier[0].parameters(), lr=opt['eta']), optim.Adam(classifier[1].parameters(), lr=opt['eta'])]
 
-		autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
-		# classifier[0].load_state_dict(torch.load(opt['classifier_file']))
+	if opt['experiment'] == 'mnist':
+
+		opt['B'] = 100
+		opt['dims'] = 28
+		# opt['dims'] = 28
+		data_loader = data.MNISTDataGenerator(opt)
+
+		autoencoder = mlp.MNISTAutoEncoder(opt)
+		AE_criterion = nn.BCELoss()
+		AE_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
+
+		classifier = mlp.MNISTClassifier(opt)
+		CLF_criterion = nn.CrossEntropyLoss()
+		CLF_optimiser = optim.Adam(classifier.parameters(), lr=opt['eta'])
+
+	autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
+	# classifier[0].load_state_dict(torch.load(opt['classifier_file']))
 
 	if train_AE_CLF:
 		# train_autoencoder(opt, data_loader, autoencoder, AE_criterion, AE_optimiser)

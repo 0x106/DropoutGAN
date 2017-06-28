@@ -152,43 +152,43 @@ class MNISTDataGenerator():
 		self.B = opt['B']
 		self.cuda = opt['gpu']
 
-		data_path = '../data/mnist'
+		data_path = opt['data_path']
 		if self.cuda:
 			data_path = '/input'
+
+		print(data_path)
 
 		self.trData = dset.MNIST(data_path, train=True, download=True,
 					   transform=transforms.Compose([
 						#    transforms.ToPILImage(),
-						   transforms.Scale(32),
+						#    transforms.Scale(32),
 						   transforms.ToTensor(),
 						   transforms.Normalize((0.1307,), (0.3081,))
 					   ]))
 
-
-
 		self.N = len(self.trData)
 		# self.trData = self.trData[:self.N]
 		self.sample = torch.FloatTensor(self.B, 1, opt['dims'], opt['dims'])
+		self.targets = torch.LongTensor(self.B)
 		self.train_loader = torch.utils.data.DataLoader(self.trData, batch_size=self.B, shuffle=True)
 		self.train_iter = iter(self.train_loader)
 
 	def next(self):
 		# sample comes from the train_loader
 		try:
-			self.sample, _ = self.train_iter.next()
+			sample, targets = self.train_iter.next()
 		except:
 			self.train_iter = iter(self.train_loader)
-			self.sample, _ = self.train_iter.next()
+			sample, targets = self.train_iter.next()
 
 		if self.sample.size(0) < self.B:
 			self.train_iter = iter(self.train_loader)
-			self.sample, _ = self.train_iter.next()
+			sample, targets = self.train_iter.next()
 
-		return self.sample#.cuda()#.size()
+		self.sample.copy_(sample)
+		self.targets.copy_(targets)
 
-		# return (self.sample.view(self.sample.size(0), self.sample.size(2)*self.sample.size(3)))#.cuda()#, self.local, self.point
-
-
+		return self.sample, None, None, self.targets
 
 class DataConditionalCircle():
 
