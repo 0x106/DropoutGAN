@@ -306,29 +306,32 @@ class MNISTClassifier(nn.Module):
 
         self.dims = opt['dims']
 
-        self.fc1 = nn.Linear(self.dims * self.dims, opt['nh'])
-        self.fc2 = nn.Linear(opt['nh'], opt['n_units'])
-        self.fc3 = nn.Linear(opt['n_units'], 10)
+        self.fc1 = nn.Linear(self.dims * self.dims, opt['nh']*12)
+        self.fc2 = nn.Linear(opt['nh']*12, opt['nh']*10)
+        self.fc3 = nn.Linear(opt['nh']*10, opt['nh']*4)
+        self.fc4 = nn.Linear(opt['nh']*4, opt['n_units'])
+        self.fc5 = nn.Linear(opt['n_units'], 10)
 
     def forward(self, x, probs, is_training=False):
         x = x.view(x.size(0), self.dims * self.dims)
         x = nn.ReLU(True)(self.fc1(x))
-        x = nn.ReLU(True)( self.dropout( self.fc2(x), probs, is_training) )
-        x = nn.Sigmoid()(self.fc3(x))
+        x = nn.ReLU(True)(self.fc2(x))
+        x = nn.ReLU(True)(self.fc3(x))
+        x = nn.ReLU(True)( self.dropout( self.fc4(x), probs, is_training) )
+        x = nn.Sigmoid()(self.fc5(x))
 
         return x
 
     def dropout(self, layer, probs, is_training):
 
         if is_training:
-            # probs = torch.round(probs) * 0.9 + 0.05
+            probs = torch.round(probs) * 0.9 + 0.05
 
             drop = torch.bernoulli(torch.round(probs))
             layer = drop * layer
             # layer = layer * (1./(torch.sum(drop)/probs.size(0))).data[0]
 
         return layer
-
 
 class MNISTAutoEncoder(nn.Module):
     def __init__(self, opt):

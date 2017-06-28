@@ -165,6 +165,16 @@ class MNISTDataGenerator():
 						   transforms.ToTensor(),
 						   transforms.Normalize((0.1307,), (0.3081,))
 					   ]))
+		self.testData = dset.MNIST(data_path, train=False, download=True,
+					   transform=transforms.Compose([
+						#    transforms.ToPILImage(),
+						#    transforms.Scale(32),
+						   transforms.ToTensor(),
+						   transforms.Normalize((0.1307,), (0.3081,))
+					   ]))
+
+		# print(len(self.trData), len(self.testData))
+		# sys.exit()
 
 		self.N = len(self.trData)
 		# self.trData = self.trData[:self.N]
@@ -173,7 +183,27 @@ class MNISTDataGenerator():
 		self.train_loader = torch.utils.data.DataLoader(self.trData, batch_size=self.B, shuffle=True)
 		self.train_iter = iter(self.train_loader)
 
+		self.test_loader = torch.utils.data.DataLoader(self.testData, batch_size=self.B, shuffle=True)
+		self.test_iter = iter(self.test_loader)
+
 	def next(self):
+		# sample comes from the train_loader
+		try:
+			sample, targets = self.train_iter.next()
+		except:
+			self.train_iter = iter(self.train_loader)
+			sample, targets = self.train_iter.next()
+
+		if self.sample.size(0) < self.B:
+			self.train_iter = iter(self.train_loader)
+			sample, targets = self.train_iter.next()
+
+		self.sample.copy_(sample)
+		self.targets.copy_(targets)
+
+		return self.sample, None, None, self.targets
+
+	def next_test(self):
 		# sample comes from the train_loader
 		try:
 			sample, targets = self.train_iter.next()
