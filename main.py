@@ -12,6 +12,11 @@ import matplotlib.pyplot as plt
 # plt.ion()
 
 def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
+
+	if os.path.isfile(opt['autoencoder_file']):
+		print("Autoencoder already exists with that file name.")
+		return
+
 	logs = []
 	for epoch in range(opt['epochs']):
 		autoencoder.zero_grad()
@@ -39,18 +44,36 @@ def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
 			print(epoch, np.mean(logs[-100:]))
 
-	torch.save(autoencoder.state_dict(), "/Users/jordancampbell/helix/phd/DropoutGAN/models/autoencoder-v1-0.pth")
+	torch.save(autoencoder.state_dict(),opt['autoencoder_file'])
 
-def train_classifier():
-	"""
-		Principled Dropout Classifier.
-		To be implemented.
-	"""
-	pass
+def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
+	if os.path.isfile(opt['classifier_file']):
+		print("Classifier already exists with that file name.")
+		return
+
+	if not os.path.isfile(opt['autoencoder_file']):
+		print("No autoencoder exists.")
+		print("Looking for:", opt['autoencoder_file'])
+		return
+
+	logs = []
+	for epoch in range(opt['epochs']):
+		classifier.zero_grad()
+
+		x, _, _, targets = data_loader.next()
+		
+		for i in range(x.size(0)):
+			if targets[i] == 0.:
+				plt.plot(x[i,0], x[i,1], '+', color='blue')
+			else:
+				plt.plot(x[i,0], x[i,1], '+', color='red')
+		plt.pause(100)
+		plt.clf()
+
+		sys.exit()
 
 def train_adversarial():
 	pass
-
 
 if __name__ == '__main__':
 
@@ -70,7 +93,9 @@ if __name__ == '__main__':
 		'epochs': 200,
 		'gpu': False,
 		'mnist': False,
-		'output': "/output/"
+		'output': "/output/",
+		'autoencoder_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/autoencoder-v1-0.pth",
+		'classifier_file':  "/Users/jordancampbell/helix/phd/DropoutGAN/models/classifier-v1-0.pth"
 	}
 
 	experiment = 'circle'
@@ -80,12 +105,15 @@ if __name__ == '__main__':
 		data_loader = data.DataCircle(opt)
 
 		autoencoder = mlp.AutoEncoder(opt)
+		AE_criterion = nn.BCELoss()
+		AE_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
 
-		criterion = nn.BCELoss()
-		optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
+		classifier = mlp.AutoEncoder(opt)
+		CLF_criterion = nn.BCELoss()
+		CLF_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
 
-	train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser)
-	train_classifier()
+	train_autoencoder(opt, data_loader, autoencoder, AE_criterion, AE_optimiser)
+	train_classifier(opt, data_loader, autoencoder, classifier, CLF_criterion, CLF_optimiser)
 
 
 

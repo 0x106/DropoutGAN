@@ -14,53 +14,90 @@ def normalise(data, _new_min=-1.,_new_max=1):
 class DataCircle():
 
 	def __init__(self, opt):
-		self.B = opt['B']
+		self.B = 1000#opt['B']
 
 		# the two data circles
 		self.P = torch.FloatTensor(self.B, 2).fill_(0)
 		self.Q = torch.FloatTensor(self.B, 2).fill_(0)
 
 		self.M = torch.FloatTensor(self.B*2, 2).fill_(0)
-		self.T = torch.FloatTensor(self.B*2).fill_(0)
-		self.targets = torch.FloatTensor(self.B*2,2).fill_(0)
+		self.T = torch.FloatTensor(self.B).fill_(0)
+		# self.targets = torch.FloatTensor(self.B*2,2).fill_(0)
+		self.targets = np.zeros(self.B)
 
 	def next(self):
 
-		theta = torch.rand(2, self.B) * 2. * math.pi
-		alpha = 6. + torch.FloatTensor(2, self.B).normal_(0.,0.1)
+		z = 10
+		label = 0
+		size = ((2. * math.pi) / z)
+		for i in range(z):
 
-		self.P[:,0] = -2. + alpha[0] * torch.sin(theta[0])
-		self.P[:,1] = alpha[0] * torch.cos(theta[0])
+			lower = (i * ((2. * math.pi) / z))
+			upper = ((i+1) * ((2. * math.pi) / z))
 
-		self.Q[:,0] = 2. + alpha[1] * torch.sin(theta[1])
-		self.Q[:,1] = alpha[1] * torch.cos(theta[1])
+			theta = lower + (torch.rand(2, self.B//z) * size)
+			alpha = 6. + torch.FloatTensor(2, self.B//z).normal_(0.,0.1)
 
-		self.M[:self.B].copy_(self.P)
-		self.M[self.B:].copy_(self.Q)
+			self.P[i*(self.B//z):(i+1)*(self.B//z),0] = -2. + alpha[0] * torch.sin(theta[0])
+			self.P[i*(self.B//z):(i+1)*(self.B//z),1] = alpha[0] * torch.cos(theta[0])
+
+			self.T[i*(self.B//z):(i+1)*(self.B//z)].fill_(label)
+
+			label = 0 if label else 1
 
 		self.P[:,0].copy_(torch.from_numpy(normalise(self.P[:,0].numpy())))
 		self.P[:,1].copy_(torch.from_numpy(normalise(self.P[:,1].numpy())))
-		self.M[:,0].copy_(torch.from_numpy(normalise(self.M[:,0].numpy())))
-		self.M[:,1].copy_(torch.from_numpy(normalise(self.M[:,1].numpy())))
 
-		# self.T.fill_(0.)
-		# for i in range(self.B):
-		# 	if self.P[i,1] > 0.:
-		# 		self.T[i] = 1
+		return self.P, self.Q, self.M[:self.B], self.T[:self.B]
 
-		self.T[:self.B].fill_(1.)
-		self.T[self.B:].fill_(0.)
-
-		indices = torch.LongTensor(self.B*2).copy_(torch.from_numpy(np.random.permutation(self.B*2)))
-
-		self.M = self.M[indices]
-		self.T = self.T[indices]
-
-		# self.targets[:,0].copy_(self.T)
-		# self.targets[:,1].copy_(1. - self.T)
-
-		# return self.P.cuda(), self.Q.cuda(), self.M[:self.B].cuda(), self.targets[:self.B].cuda()
-		return self.P, self.Q, self.M[:self.B], self.T[:self.B]#self.targets[:self.B]
+	# def next(self):
+	#
+	# 	theta = torch.rand(2, self.B) * 2. * math.pi
+	# 	alpha = 6. + torch.FloatTensor(2, self.B).normal_(0.,0.1)
+	#
+	# 	self.P[:,0] = -2. + alpha[0] * torch.sin(theta[0])
+	# 	self.P[:,1] = alpha[0] * torch.cos(theta[0])
+	#
+	# 	self.Q[:,0] = 2. + alpha[1] * torch.sin(theta[1])
+	# 	self.Q[:,1] = alpha[1] * torch.cos(theta[1])
+	#
+	# 	self.M[:self.B].copy_(self.P)
+	# 	self.M[self.B:].copy_(self.Q)
+	#
+	# 	self.P[:,0].copy_(torch.from_numpy(normalise(self.P[:,0].numpy())))
+	# 	self.P[:,1].copy_(torch.from_numpy(normalise(self.P[:,1].numpy())))
+	# 	self.M[:,0].copy_(torch.from_numpy(normalise(self.M[:,0].numpy())))
+	# 	self.M[:,1].copy_(torch.from_numpy(normalise(self.M[:,1].numpy())))
+	#
+	# 	# print(theta)
+	# 	# theta = theta[0].numpy()
+	# 	# indices = [i for i in range(self.B) if (theta[0,i] > 0. and theta[0,i] < 1)]
+	# 	# print(torch.ByteTensor(indices).unsqueeze(1).size())
+	# 	# print(theta[torch.ByteTensor(indices).unsqueeze(0)])
+	# 	# print(theta[0,:].numpy() > 0. and theta[0,:].numpy() < 0.1)
+	#
+	#
+	# 	# self.T[theta > 0. and theta < 0.1].fill_(0.)
+	# 	sys.exit()
+	#
+	# 	# self.T.fill_(0.)
+	# 	# for i in range(self.B):
+	# 	# 	if self.P[i,1] > 0.:
+	# 	# 		self.T[i] = 1
+	#
+	# 	# self.T[:self.B].fill_(1.)
+	# 	# self.T[self.B:].fill_(0.)
+	#
+	# 	# indices = torch.LongTensor(self.B*2).copy_(torch.from_numpy(np.random.permutation(self.B*2)))
+	#
+	# 	# self.M = self.M[indices]
+	# 	# self.T = self.T[indices]
+	#
+	# 	# self.targets[:,0].copy_(self.T)
+	# 	# self.targets[:,1].copy_(1. - self.T)
+	#
+	# 	# return self.P.cuda(), self.Q.cuda(), self.M[:self.B].cuda(), self.targets[:self.B].cuda()
+	# 	return self.P, self.Q, self.M[:self.B], self.T[:self.B]#self.targets[:self.B]
 
 
 class Data():
