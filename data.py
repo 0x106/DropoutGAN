@@ -25,7 +25,16 @@ class DataCircle():
 		# self.targets = torch.FloatTensor(self.B*2,2).fill_(0)
 		self.targets = np.zeros(self.B)
 
-	def next(self):
+	# def next(self):
+	# 	theta = torch.rand(2, self.B) * (2. * math.pi)
+	# 	alpha = 6. + torch.FloatTensor(2, self.B).normal_(0.,0.1)
+	#
+	# 	self.P[:,0] = -2. + alpha[0] * torch.sin(theta[0])
+	# 	self.P[:,1] = alpha[0] * torch.cos(theta[0])
+	#
+	# 	return self.P
+
+	def next__(self):
 
 		z = 100
 		label = 0.
@@ -349,9 +358,8 @@ class DataConditionalCircle():
 		self.M[:self.B].copy_(self.P)
 		self.M[self.B:].copy_(self.Q)
 
-
-		# self.P[:,0].copy_(torch.from_numpy(normalise(self.P[:,0].numpy())))
-		# self.P[:,1].copy_(torch.from_numpy(normalise(self.P[:,1].numpy())))
+		self.P[:,0].copy_(torch.from_numpy(normalise(self.P[:,0].numpy())))
+		self.P[:,1].copy_(torch.from_numpy(normalise(self.P[:,1].numpy())))
 		# self.M[:,0].copy_(torch.from_numpy(normalise(self.M[:,0].numpy())))
 		# self.M[:,1].copy_(torch.from_numpy(normalise(self.M[:,1].numpy())))
 

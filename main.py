@@ -161,7 +161,7 @@ def misc_test_classifier(opt, data_loader, autoencoder, classifier, criterion, o
 		print(epoch, np.mean(logs0[0][-100:]), np.mean(logs0[1][-100:]), np.mean(logs1[0][-100:]), np.mean(logs1[1][-100:]))
 	# torch.save(classifier[0].state_dict(),opt['classifier_file'])
 
-def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
+def train_comparison_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
 
 	train_loader, test_loader = data_loader.get_loaders()
 
@@ -302,7 +302,6 @@ if __name__ == '__main__':
 	# plot_results(path, opt)
 	# sys.exit()
 
-
 	if opt['experiment'] == 'circle':
 		# opt['B'] = 1000
 		data_loader = data.DataCircle(opt)
@@ -342,7 +341,7 @@ if __name__ == '__main__':
 	# if False and os.path.isfile(opt['classifier_file']):
 		# classifier.load_state_dict(torch.load(opt['classifier_file']))
 	# else:
-	train_classifier(opt, data_loader, autoencoder, classifier, None, None)
+	train_comparison_classifier(opt, data_loader, autoencoder, classifier, None, None)
 
 	# import exp
 	# exp.value_surface(classifier[0], autoencoder, data_loader)

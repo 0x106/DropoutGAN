@@ -27,7 +27,7 @@ def weights_prior(network,opt):
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
-        m.weight.data.normal_(0, 0.1)#0.06)
+        m.weight.data.normal_(0, 0.02)#0.06)
         # m.bias.data.normal_(0, 1.)#0.06)
         m.bias.data.fill_(0)
     if classname.find('Conv') != -1:
@@ -37,40 +37,91 @@ def weights_init(m):
         m.bias.data.fill_(0)
 
 class Generator(nn.Module):
-    def __init__(self, opt):
-        super(Generator, self).__init__()
+	def __init__(self, isize, nz, ngf, ngpu):
+		super(Generator, self).__init__()
+		self.ngpu = ngpu
 
-        self.main = nn.Sequential(
-                nn.Linear(opt['nz'], opt['nh']),
-                nn.BatchNorm1d(opt['nh'] ),
-                nn.ReLU(),
-                nn.Linear(opt['nh'], opt['nh']*2),
-                nn.BatchNorm1d(opt['nh'] * 2),
-                nn.ReLU(),
-                nn.Linear(opt['nh']*2, opt['nh']*4),
-                nn.BatchNorm1d(opt['nh'] * 4),
-                nn.ReLU(),
-                nn.Linear(opt['nh']*4, opt['dims']),
-                # nn.Tanh()
-        )
-        self.num_weights = 0
-        for l in self.main.parameters():
-            if l.dim() == 1:
-                self.num_weights += l.size(0)
-            else:
-                self.num_weights += l.size(0) * l.size(1)
+		main = nn.Sequential(
+			nn.Linear(nz, ngf),
+			nn.ReLU(True),
+			nn.Linear(ngf, ngf),
+			nn.ReLU(True),
+			nn.Linear(ngf, ngf),
+			nn.ReLU(True),
+			nn.Linear(ngf, isize),
+		)
+		self.main = main
+		self.size = isize
 
-    def forward(self, x):
-        x = self.main(x)
-        return x
+	def forward(self, noise):#, image):
+		x = noise#torch.cat((noise,image),1)
+		if isinstance(x.data, torch.cuda.FloatTensor) and self.ngpu > 1:
+			output = nn.parallel.data_parallel(self.main, x, range(self.ngpu))
+		else:
+			output = self.main(x)
+		return output
 
-    def clear_weights(self):
-        for p in self.parameters():
-            p.data.fill_(0.)
+class Critic(nn.Module):
+	def __init__(self, isize, nz, ndf, ngpu):
+		super(Critic, self).__init__()
+		self.ngpu = ngpu
 
-    def copy(self, mlp):
-        for (src, dst) in zip(mlp.parameters(), self.parameters()):
-            dst.data.copy_(src.data)
+		main = nn.Sequential(
+			nn.Linear(isize, ndf),
+			nn.ReLU(True),
+			nn.Linear(ndf, ndf),
+			nn.ReLU(True),
+			nn.Linear(ndf, ndf),
+			nn.ReLU(True),
+			nn.Linear(ndf, 1),
+		)
+		self.main = main
+		self.size = isize
+
+	def forward(self, image):
+		if isinstance(image.data, torch.cuda.FloatTensor) and self.ngpu > 1:
+			output = nn.parallel.data_parallel(self.main, image, range(self.ngpu))
+		else:
+			output = self.main(image)
+		output = output.mean(0)
+		return output.view(1)
+
+
+# class Generator(nn.Module):
+#     def __init__(self, opt):
+#         super(Generator, self).__init__()
+#
+#         self.main = nn.Sequential(
+#                 nn.Linear(opt['nz'], opt['nh']),
+#                 nn.BatchNorm1d(opt['nh'] ),
+#                 nn.ReLU(),
+#                 nn.Linear(opt['nh'], opt['nh']*2),
+#                 nn.BatchNorm1d(opt['nh'] * 2),
+#                 nn.ReLU(),
+#                 nn.Linear(opt['nh']*2, opt['nh']*4),
+#                 nn.BatchNorm1d(opt['nh'] * 4),
+#                 nn.ReLU(),
+#                 nn.Linear(opt['nh']*4, opt['dims']),
+#                 # nn.Tanh()
+#         )
+#         self.num_weights = 0
+#         for l in self.main.parameters():
+#             if l.dim() == 1:
+#                 self.num_weights += l.size(0)
+#             else:
+#                 self.num_weights += l.size(0) * l.size(1)
+#
+#     def forward(self, x):
+#         x = self.main(x)
+#         return x
+#
+#     def clear_weights(self):
+#         for p in self.parameters():
+#             p.data.fill_(0.)
+#
+#     def copy(self, mlp):
+#         for (src, dst) in zip(mlp.parameters(), self.parameters()):
+#             dst.data.copy_(src.data)
 
 class Discriminator(nn.Module):
     def __init__(self, opt):
