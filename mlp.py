@@ -315,33 +315,41 @@ class MNISTClassifier(nn.Module):
         self.fc5 = nn.Linear(opt['n_units'], 10)
 
     def setup(self):
-        self.criterion = nn.CrossEntropyLoss()
-        self.optimiser = optim.Adam(self.parameters(), lr=self.lr)
+        self.criterion__ = nn.CrossEntropyLoss()
+        self.optimiser__ = optim.Adam(self.parameters(), lr=self.lr)
 
-    def forward(self, x, probs, is_training=False):
+    def forward(self, x, probs, is_training=False, standard_dropout=False):
+
         x = x.view(x.size(0), self.dims * self.dims)
         x = nn.ReLU(True)(self.fc1(x))
         x = nn.ReLU(True)(self.fc2(x))
         x = nn.ReLU(True)(self.fc3(x))
-        x = nn.ReLU(True)( self.dropout( self.fc4(x), probs, is_training) )
+
+        if standard_dropout:
+            x = nn.ReLU(True)( nn.Dropout(0.5)( self.fc4(x) ) )
+        else:
+            x = nn.ReLU(True)( self.dropout( self.fc4(x), probs, is_training) )
+            # x = nn.ReLU(True)( nn.Dropout(probs.data)( self.fc4(x)) )
         x = nn.Sigmoid()(self.fc5(x))
 
         return x
 
     def criterion(self, x, t):
-        return self.criterion(x, t)
+        return self.criterion__(x, t)
 
     def optimiser(self):
-        self.optimiser.step()
+        self.optimiser__.step()
 
     def dropout(self, layer, probs, is_training):
 
-        if is_training:
-            # probs = torch.round(probs) * 0.9 + 0.05
+        # if is_training:
+            # probs = torch.round(probs) * 0.8 + 0.1
 
-            drop = torch.bernoulli(torch.round(probs))
-            layer = drop * layer
-            # layer = layer * (1./(torch.sum(drop)/probs.size(0))).data[0]
+        drop = torch.bernoulli(probs)#torch.round(probs))
+        layer = drop * layer
+
+        # if is_training:
+        # layer = layer * (1./(torch.sum(drop)/probs.size(0))).data[0]
 
         return layer
 

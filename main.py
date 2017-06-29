@@ -165,50 +165,79 @@ def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optim
 
 	train_loader, test_loader = data_loader.get_loaders()
 
-	resp = ''
-	if os.path.isfile(opt['classifier_file']):
-		print('Do you want to overwrite the classifier?')
-		print('File:', opt['classifier_file'])
-		resp = input('[y/n] --> ')
+	# resp = ''
+	# if os.path.isfile(opt['classifier_file']):
+	# 	print('Do you want to overwrite the classifier?')
+	# 	print('File:', opt['classifier_file'])
+	# 	resp = input('[y/n] --> ')
+	#
+	# if resp == 'n':
+	# 	print('Exiting.')
+	# 	return
 
-	if resp == 'n':
-		print('Exiting.')
-		return
-
-	logs = [[], []]
+	logs0 = [[], []]
+	logs1 = [[], []]
+	logs2 = [[], []]
 	for epoch in range(opt['epochs']):
 
 		data_iter = iter(train_loader)
 
 		for idx in range(len(data_iter)):
-			classifier.zero_grad()
+
+			classifier[0].zero_grad()
+			classifier[1].zero_grad()
+			classifier[2].zero_grad()
 
 			# x, _, _, targets = data_loader.next()
 			x, targets = data_iter.next()
 			y, z = autoencoder( Variable(x) )
 
 			# z.data.fill_(0.5)
-			output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
+			output0 = classifier[0](Variable(x), Variable(z.detach().data), is_training=False)
+			loss0 = classifier[0].criterion(output0, Variable(targets))
+			loss0.backward()
 
-			loss = criterion(output, Variable(targets))
+			# z.data.fill_(0.5)
+			output1 = classifier[1](Variable(x), Variable(z.detach().data), is_training=True, standard_dropout=True)
+			loss1 = classifier[1].criterion(output1, Variable(targets))
+			loss1.backward()
 
-			loss.backward()
+			z.data.fill_(1.)
+			output2 = classifier[2](Variable(x), Variable(z.detach().data), is_training=False)
+			loss2 = classifier[2].criterion(output2, Variable(targets))
+			loss2.backward()
 
-			optimiser.step()
+			classifier[0].optimiser()
+			classifier[1].optimiser()
+			classifier[2].optimiser()
 
-		test_a,test_b = test_classifier(opt, test_loader, autoencoder, classifier, criterion)
-		logs[0].append(test_a)
-		logs[1].append(test_b)
-		plt.plot(logs[0])
-		plt.plot(logs[1])
+		test_a0, test_b0 = test_classifier(opt, test_loader, autoencoder, classifier[0], None, 0)
+		test_a1, test_b1 = test_classifier(opt, test_loader, autoencoder, classifier[1], None, 1)
+		test_a2, test_b2 = test_classifier(opt, test_loader, autoencoder, classifier[2], None, 2)
+
+		logs0[0].append(test_a0)
+		logs0[1].append(test_b0)
+
+		logs1[0].append(test_a1)
+		logs1[1].append(test_b1)
+
+		logs2[0].append(test_a2)
+		logs2[1].append(test_b2)
+
+		plt.plot(logs0[0])
+		plt.plot(logs0[1])
+		plt.plot(logs1[0])
+		plt.plot(logs1[1])
+		plt.plot(logs2[0])
+		plt.plot(logs2[1])
 		plt.pause(0.01)
 		plt.clf()
 
-		print(epoch, np.mean(logs[0][-100:]), np.mean(logs[1][-100:]))
+		print(epoch, np.mean(logs0[0][-100:]), np.mean(logs0[1][-100:]), np.mean(logs1[0][-100:]), np.mean(logs1[1][-100:]), np.mean(logs2[0][-100:]), np.mean(logs2[1][-100:]))
 
-		torch.save(classifier.state_dict(),opt['classifier_file'])
+		# torch.save(classifier.state_dict(),opt['classifier_file'])
 
-def test_classifier(opt, test_loader, autoencoder, classifier, criterion):
+def test_classifier(opt, test_loader, autoencoder, classifier, criterion, idx):
 
 	data_iter = iter(test_loader)
 
@@ -219,10 +248,19 @@ def test_classifier(opt, test_loader, autoencoder, classifier, criterion):
 		x, targets = data_iter.next()
 		y, z = autoencoder( Variable(x) )
 
-		# z.data.fill_(0.5)
-		output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
+		if idx == 0:
+			# z.data.fill_(1.)
+			output = classifier(Variable(x), Variable(z.detach().data), is_training=False)
+		elif idx == 1:
+			z.data.fill_(1.)
+			classifier.eval()
+			output = classifier(Variable(x), Variable(z.detach().data), standard_dropout=True)
+			classifier.train()
+		else:
+			z.data.fill_(1.)
+			output = classifier(Variable(x), Variable(z.detach().data))
 
-		loss += criterion(output, Variable(targets)).data[0]
+		loss += classifier.criterion(output, Variable(targets)).data[0]
 
 		prediction = output.data.max(1)[1]
 		correct += float(prediction[:,0].eq(targets).sum()) / opt['B']
@@ -279,7 +317,7 @@ if __name__ == '__main__':
 
 	if opt['experiment'] == 'mnist':
 
-		opt['B'] = 100
+		# opt['B'] = 100
 		opt['dims'] = 28
 		# opt['dims'] = 28
 		data_loader = data.MNISTDataGenerator(opt)
@@ -289,19 +327,22 @@ if __name__ == '__main__':
 		AE_criterion = nn.BCELoss()
 		AE_optimiser = optim.Adam(autoencoder.parameters(), lr=opt['eta'])
 
-		classifier = mlp.MNISTClassifier(opt)
-		CLF_criterion = nn.CrossEntropyLoss()
-		CLF_optimiser = optim.Adam(classifier.parameters(), lr=opt['eta'])
+		classifier = [mlp.MNISTClassifier(opt) for i in range(3)]
+		classifier[0].setup()
+		classifier[1].setup()
+		classifier[2].setup()
+		# CLF_criterion = nn.CrossEntropyLoss()
+		# CLF_optimiser = optim.Adam(classifier.parameters(), lr=opt['eta'])
 
 	if os.path.isfile(opt['autoencoder_file']):
 		autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
 	else:
 		train_autoencoder(opt, train_loader, autoencoder, AE_criterion, AE_optimiser)
 
-	if False and os.path.isfile(opt['classifier_file']):
-		classifier.load_state_dict(torch.load(opt['classifier_file']))
-	else:
-		train_classifier(opt, data_loader, autoencoder, classifier, CLF_criterion, CLF_optimiser)
+	# if False and os.path.isfile(opt['classifier_file']):
+		# classifier.load_state_dict(torch.load(opt['classifier_file']))
+	# else:
+	train_classifier(opt, data_loader, autoencoder, classifier, None, None)
 
 	# import exp
 	# exp.value_surface(classifier[0], autoencoder, data_loader)
