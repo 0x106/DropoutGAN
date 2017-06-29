@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.optim as optim
 from torch.autograd import Variable
 import math, sys
 import numpy as np
@@ -305,12 +306,17 @@ class MNISTClassifier(nn.Module):
         super(MNISTClassifier, self).__init__()
 
         self.dims = opt['dims']
+        self.lr = opt['eta']
 
         self.fc1 = nn.Linear(self.dims * self.dims, opt['nh']*12)
         self.fc2 = nn.Linear(opt['nh']*12, opt['nh']*10)
         self.fc3 = nn.Linear(opt['nh']*10, opt['nh']*4)
         self.fc4 = nn.Linear(opt['nh']*4, opt['n_units'])
         self.fc5 = nn.Linear(opt['n_units'], 10)
+
+    def setup(self):
+        self.criterion = nn.CrossEntropyLoss()
+        self.optimiser = optim.Adam(self.parameters(), lr=self.lr)
 
     def forward(self, x, probs, is_training=False):
         x = x.view(x.size(0), self.dims * self.dims)
@@ -322,10 +328,16 @@ class MNISTClassifier(nn.Module):
 
         return x
 
+    def criterion(self, x, t):
+        return self.criterion(x, t)
+
+    def optimiser(self):
+        self.optimiser.step()
+
     def dropout(self, layer, probs, is_training):
 
         if is_training:
-            probs = torch.round(probs) * 0.9 + 0.05
+            # probs = torch.round(probs) * 0.9 + 0.05
 
             drop = torch.bernoulli(torch.round(probs))
             layer = drop * layer

@@ -11,13 +11,30 @@ import data, mlp#, mmd
 import matplotlib.pyplot as plt
 # plt.ion()
 
+def plot_results(path, opt):
+
+	files = [path + 'DropoutGAN/output/AE-mnist-01.txt',
+			 path + 'DropoutGAN/output/dropout-half-mnist-01.txt',
+		 	 path + 'DropoutGAN/output/no-dropout-mnist-01.txt']
+
+	results = []
+
+	for i in range(len(files)):
+		with open(files[i], 'r') as f:
+			results.append(f.readlines())
+
+		print(len(results[i][0]))
+
+	print(results)
+
+
 def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
 	resp = ''
 	if os.path.isfile(opt['autoencoder_file']):
 		print('Do you want to overwrite the autoencoder?')
 		print('File:', opt['autoencoder_file'])
-		resp = raw_input('[y/n] --> ')
+		resp = input('[y/n] --> ')
 
 	if resp == 'n':
 		print('Exiting.')
@@ -25,36 +42,39 @@ def train_autoencoder(opt, data_loader, autoencoder, criterion, optimiser):
 
 	logs = []
 	for epoch in range(opt['epochs']):
-		autoencoder.zero_grad()
 
-		x, _, _, _ = data_loader.next()
+		data_iter = iter(data_loader)
 
-		y, z = autoencoder( Variable(x) )
-		loss = criterion( nn.Sigmoid()(y), nn.Sigmoid()(Variable(x)) )
+		for idx in range(len(data_iter)):
+			autoencoder.zero_grad()
 
-		loss.backward()
+			# x, _, _, _ = data_loader.next()
+			x, _ = data_iter.next()
 
-		logs.append(loss.data[0])
+			y, z = autoencoder( Variable(x) )
+			loss = criterion( nn.Sigmoid()(y), nn.Sigmoid()(Variable(x)) )
 
-		optimiser.step()
+			loss.backward()
+
+			logs.append(loss.data[0])
+
+			optimiser.step()
 
 		if opt['experiment'] == 'mnist':
-			if ((epoch+1)%100) == 0:
-				vutils.save_image(y.data, '{}/real_samples-{}.png'.format(opt['output'], epoch), normalize=True)
+			vutils.save_image(y.data, '{}/real_samples-{}.png'.format(opt['output'], epoch), normalize=True)
 		else:
-			if ((epoch+1)%10) == 0:
-				plt.subplot(211)
-				plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
-				plt.plot(y.data[:,0].numpy(), y.data[:,1].numpy(), '+')
+			plt.subplot(211)
+			plt.plot(x[:,0].numpy(), x[:,1].numpy(), '+')
+			plt.plot(y.data[:,0].numpy(), y.data[:,1].numpy(), '+')
 
-				plt.subplot(212)
-				plt.plot(logs)
-				plt.pause(0.001)
-				plt.clf()
+			plt.subplot(212)
+			plt.plot(logs)
+			plt.pause(0.001)
+			plt.clf()
 
 		print(epoch, np.mean(logs[-100:]))
 
-	torch.save(autoencoder.state_dict(),opt['autoencoder_file'])
+		torch.save(autoencoder.state_dict(),opt['autoencoder_file'])
 
 def misc_test_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
 
@@ -143,6 +163,8 @@ def misc_test_classifier(opt, data_loader, autoencoder, classifier, criterion, o
 
 def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optimiser):
 
+	train_loader, test_loader = data_loader.get_loaders()
+
 	resp = ''
 	if os.path.isfile(opt['classifier_file']):
 		print('Do you want to overwrite the classifier?')
@@ -155,81 +177,68 @@ def train_classifier(opt, data_loader, autoencoder, classifier, criterion, optim
 
 	logs = [[], []]
 	for epoch in range(opt['epochs']):
-		classifier.zero_grad()
 
-		x, _, _, targets = data_loader.next()
-		y, z = autoencoder( Variable(x) )
+		data_iter = iter(train_loader)
 
-		z.data.fill_(1.)
-		output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
+		for idx in range(len(data_iter)):
+			classifier.zero_grad()
 
-		loss = criterion(output, Variable(targets))
+			# x, _, _, targets = data_loader.next()
+			x, targets = data_iter.next()
+			y, z = autoencoder( Variable(x) )
 
-		loss.backward()
+			# z.data.fill_(0.5)
+			output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
 
-		optimiser.step()
+			loss = criterion(output, Variable(targets))
 
-		a,b = test_classifier(opt, data_loader, autoencoder, classifier, criterion)
-		logs[0].append(a)
-		logs[1].append(b)
+			loss.backward()
+
+			optimiser.step()
+
+		test_a,test_b = test_classifier(opt, test_loader, autoencoder, classifier, criterion)
+		logs[0].append(test_a)
+		logs[1].append(test_b)
 		plt.plot(logs[0])
 		plt.plot(logs[1])
 		plt.pause(0.01)
 		plt.clf()
 
-		# logs[0].append(loss.data[0])
-		# prediction = output.data.max(1)[1]
-		# correct = prediction[:,0].eq(targets).sum()
-		# logs[1].append(float(correct) / opt['B'])
-
-		# print(output.data[0])
-		# print(prediction[0,0], targets[0])
-		# print(prediction.size(), targets.size())
-
 		print(epoch, np.mean(logs[0][-100:]), np.mean(logs[1][-100:]))
 
+		torch.save(classifier.state_dict(),opt['classifier_file'])
 
-	# torch.save(classifier[0].state_dict(),opt['classifier_file'])
+def test_classifier(opt, test_loader, autoencoder, classifier, criterion):
 
+	data_iter = iter(test_loader)
 
-def test_classifier(opt, data_loader, autoencoder, classifier, criterion):
+	loss, correct = 0, 0
+	for idx in range(len(data_iter)):
 
-	# logs = [[], []]
-	for epoch in range(opt['epochs']):
-
-		x, _, _, targets = data_loader.next_test()
+		# x, _, _, targets = data_loader.next_test()
+		x, targets = data_iter.next()
 		y, z = autoencoder( Variable(x) )
 
-		z.data.fill_(1.)
+		# z.data.fill_(0.5)
 		output = classifier(Variable(x), Variable(z.detach().data), is_training=True)
 
-		loss = criterion(output, Variable(targets))
+		loss += criterion(output, Variable(targets)).data[0]
 
-		# logs[0].append(loss.data[0])
 		prediction = output.data.max(1)[1]
-		correct = prediction[:,0].eq(targets).sum()
-		# logs[1].append(float(correct) / opt['B'])
-#
-		# print(epoch, np.mean(logs[0][-100:]), np.mean(logs[1][-100:]))
-		return loss.data[0], float(correct) / opt['B']
-
-
-	# torch.save(classifier[0].state_dict(),opt['classifier_file'])
-
+		correct += float(prediction[:,0].eq(targets).sum()) / opt['B']
+	return float(loss) / len(data_iter), float(correct) / len(data_iter) # loss, accuracy
 
 def train_adversarial():
 	pass
 
 if __name__ == '__main__':
 
+	path = '/Users/jordancampbell/helix/phd/'
+	# path = '/helix/GAN/'
+
 	print(" ---- Setup ---- ")
 
-	train_AE_CLF = False
-	if len(sys.argv) > 1:
-		if sys.argv[1] == 'train-AE-CLF':
-			train_AE_CLF = True
-
-	opt = { 'B': 1000,
+	opt = { 'B': 100,
 		'ng': 4,
 		'J': 10,
 		'M': 1,
@@ -244,12 +253,17 @@ if __name__ == '__main__':
 		'gpu': False,
 		'mnist': False,
 		'gpu': False,
-		'data_path': '/helix/GAN/DropoutGAN/data/mnist/',
-		'output': '/helix/GAN/DropoutGAN/output',
-		'autoencoder_file':  "/helix/GAN/DropoutGAN/models/autoencoder-mnist-v1-0.pth",
-		'classifier_file':  "/helix/GAN/DropoutGAN/models/classifier-mnist-v1-0.pth",
+		'data_path': path + 'DropoutGAN/data/mnist/',
+		'output': path + 'DropoutGAN/output',
+		'autoencoder_file': path + "DropoutGAN/models/autoencoder-mnist-v1-1.pth",
+		'classifier_file':  path + "DropoutGAN/models/classifier-mnist-v1-1.pth",
 		'experiment': 'mnist'
 	}
+
+
+	# plot_results(path, opt)
+	# sys.exit()
+
 
 	if opt['experiment'] == 'circle':
 		# opt['B'] = 1000
@@ -269,6 +283,7 @@ if __name__ == '__main__':
 		opt['dims'] = 28
 		# opt['dims'] = 28
 		data_loader = data.MNISTDataGenerator(opt)
+		train_loader, test_loader = data_loader.get_loaders()
 
 		autoencoder = mlp.MNISTAutoEncoder(opt)
 		AE_criterion = nn.BCELoss()
@@ -278,11 +293,14 @@ if __name__ == '__main__':
 		CLF_criterion = nn.CrossEntropyLoss()
 		CLF_optimiser = optim.Adam(classifier.parameters(), lr=opt['eta'])
 
-	autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
-	# classifier[0].load_state_dict(torch.load(opt['classifier_file']))
+	if os.path.isfile(opt['autoencoder_file']):
+		autoencoder.load_state_dict(torch.load(opt['autoencoder_file']))
+	else:
+		train_autoencoder(opt, train_loader, autoencoder, AE_criterion, AE_optimiser)
 
-	if train_AE_CLF:
-		# train_autoencoder(opt, data_loader, autoencoder, AE_criterion, AE_optimiser)
+	if False and os.path.isfile(opt['classifier_file']):
+		classifier.load_state_dict(torch.load(opt['classifier_file']))
+	else:
 		train_classifier(opt, data_loader, autoencoder, classifier, CLF_criterion, CLF_optimiser)
 
 	# import exp

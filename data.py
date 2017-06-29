@@ -186,6 +186,9 @@ class MNISTDataGenerator():
 		self.test_loader = torch.utils.data.DataLoader(self.testData, batch_size=self.B, shuffle=True)
 		self.test_iter = iter(self.test_loader)
 
+	def get_loaders(self):
+		return self.train_loader, self.test_loader
+
 	def next(self):
 		# sample comes from the train_loader
 		try:
